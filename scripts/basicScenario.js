@@ -1,8 +1,8 @@
 
 const Web3 = require ('web3')
 
-let IdentityAbi = require('../build/Identity.json')
-let IdentityBin = require('../build/Identity.bin.json')
+let IdentityAbi = require('../build/Identity.abi.json')
+let IdentityBin = require('../build/Identity.bin.json').bytecode
 
 Web3.providers.HttpProvider.prototype.sendAsync = Web3.providers.HttpProvider.prototype.send
 let wsProvider = new Web3.providers.WebsocketProvider("ws://localhost:8545")
