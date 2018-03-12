@@ -3,6 +3,7 @@ const Web3 = require ('web3')
 //const Contract = require ('truffle-contract')
 //const IdentityArtifact = require('../build/contracts/Identity.json')
 let IdentityAbi = require('../build/Identity.json')
+let IdentityBin = require('../build/Identity.bin.json')
 
 //console.log(JSON.parse(IdentityAbi))
 
@@ -11,25 +12,35 @@ let wsProvider = new Web3.providers.WebsocketProvider("ws://localhost:8545")
 let web3 = new Web3(wsProvider)
 
 //let IdentityContract = Contract(IdentityArtifact)
-let IdentityContract = new web3.eth.Contract(IdentityAbi)
+let BaseIdentityContract = new web3.eth.Contract(IdentityAbi)
+BaseIdentityContract.setProvider(wsProvider)
 
-IdentityContract.setProvider(wsProvider)
+let accounts = []
+let userIdentityContract = {}
 
-        
-async function run()
-{
-    let accounts = await web3.eth.getAccounts()
-    
-    //let UserIdentityContract =  await IdentityContract.new({from:accounts[0]})
 
-   let deployed = await IdentityContract.deploy()
+run =()=>{
+    return new Promise((resolve, reject)=>{
 
-    console.log(deployed)
-}    
+        web3.eth.getAccounts()
+        .then((a)=>{
+            accounts = a
+        })
+        .then(()=>{
+            let deployTransaction = BaseIdentityContract.deploy({ data:IdentityBin, arguments:[]})
+        })
+
+        .then(()=>{
+            
+            resolve(1)
+        })
+    })
+}
+
 
 run()
 .then(() =>  {
-    console.log("Finalized!");
+    console.log("Done!");
     process.exit(0);
 })
 .catch((error)=>
@@ -37,18 +48,3 @@ run()
     console.log(error)
     process.exit(1)
 })
-
-
-/*
-let IdentityContract = Contract(IdentityArtifact)
-IdentityContract.setProvider(provider)
-
-let UserIdentityContract
-IdentityContract.new({from:accounts[0]}).then((instance)=>
-{
-    console.log(instance)
-    UserIdentityContract = instance
-})
-
-
-console.log(UserIdentityContract)*/
