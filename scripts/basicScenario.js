@@ -1,8 +1,10 @@
 
 const Web3 = require ('web3')
 
-let IdentityAbi = require('../build/Identity.abi.json')
-let IdentityBin = require('../build/Identity.bin.json').bytecode
+const IdentityAbi = require('../build/Identity.abi.json')
+const IdentityBin = require('../build/Identity.bin.json').bytecode
+
+const deployIdentityGasCost = 1700000
 
 Web3.providers.HttpProvider.prototype.sendAsync = Web3.providers.HttpProvider.prototype.send
 let wsProvider = new Web3.providers.WebsocketProvider("ws://localhost:8545")
@@ -16,6 +18,22 @@ let userIdentityContract = {}
 let deployGasCost = 0
 let deployTransaction = {}
 
+newDid =()=>
+{
+    return new Promise((resolve, reject)=>{
+        deployTransaction = BaseIdentityContract.deploy({ data:IdentityBin, arguments:[]})
+        deployTransaction.send( {from: accounts[0], gas: deployIdentityGasCost, gasPrice: 1})
+            .on('error', function(error){ console.error(error) })
+            //.on('transactionHash', function(transactionHash){ console.log(transactionHash)})
+            //.on('confirmation', function(confirmationNumber, receipt){ console.log (confirmationNumber, receipt) })
+            //.on('receipt', function(receipt){ console.log(receipt.contractAddress)})
+            .then(function(newContractInstance){
+                resolve(newContractInstance)
+            });
+    })
+    
+}
+
 run =()=>{
     return new Promise((resolve, reject)=>{
 
@@ -23,7 +41,13 @@ run =()=>{
         .then((a)=>{
             accounts = a
         })
-        .then(()=>{
+        .then(()=>
+        {
+            newDid().then((contract)=>{
+                console.log(contract)
+            })
+        })
+        /*.then(()=>{
             deployTransaction = BaseIdentityContract.deploy({ data:IdentityBin, arguments:[]})
             return deployTransaction.estimateGas()
         })
@@ -36,11 +60,14 @@ run =()=>{
             .on('receipt', function(receipt){ console.log(receipt.contractAddress)})
             .then(function(newContractInstance){
                 console.log(newContractInstance.options.address) // instance with the new contract address
+                console.log(gasCost)
                 resolve(1)
             });
-        })
+        })*/
     })
 };
+
+
 
 run()
 .then(() =>  {console.log("Done!"); process.exit(0);})
