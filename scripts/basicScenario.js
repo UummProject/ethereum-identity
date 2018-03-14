@@ -14,56 +14,52 @@ let BaseIdentityContract = new web3.eth.Contract(IdentityAbi)
 BaseIdentityContract.setProvider(wsProvider)
 
 let accounts = []
-let userIdentityContract = {}
-let deployGasCost = 0
-let deployTransaction = {}
+let dids = {}
 
-newDid =()=>
+let EMITTER = ""
+let USER1 = ""
+let USER2 = ""
+
+newDid =(address)=>
 {
+    console.log(address)
     return new Promise((resolve, reject)=>{
-        deployTransaction = BaseIdentityContract.deploy({ data:IdentityBin, arguments:[]})
-        deployTransaction.send( {from: accounts[0], gas: deployIdentityGasCost, gasPrice: 1})
+        let deployTransaction = BaseIdentityContract.deploy({ data:IdentityBin, arguments:[]})
+        deployTransaction.send( {from: address, gas: deployIdentityGasCost, gasPrice: 1})
             .on('error', function(error){ console.error(error) })
             //.on('transactionHash', function(transactionHash){ console.log(transactionHash)})
             //.on('confirmation', function(confirmationNumber, receipt){ console.log (confirmationNumber, receipt) })
-            //.on('receipt', function(receipt){ console.log(receipt.contractAddress)})
+            .on('receipt', function(receipt){ console.log(receipt.contractAddress)})
             .then(function(newContractInstance){
+                //console.log(address, newContractInstance.defaultAccount)
+                dids[accounts[address],newContractInstance]
                 resolve(newContractInstance)
             });
     })
-    
+}
+
+createAllDids=(availableAccounts)=>
+{
+    accounts = availableAccounts
+    return new Promise((resolve, reject)=>{
+        EMITTER = accounts[0]
+        USER1 = accounts[1]
+        USER2 = accounts[2]
+        Promise.all([
+            newDid(EMITTER),
+            newDid(USER1),
+            newDid(USER2)
+        ])
+        .then(resolve)
+        .catch(reject)
+    })
 }
 
 run =()=>{
     return new Promise((resolve, reject)=>{
-
         web3.eth.getAccounts()
-        .then((a)=>{
-            accounts = a
-        })
-        .then(()=>
-        {
-            newDid().then((contract)=>{
-                console.log(contract)
-            })
-        })
-        /*.then(()=>{
-            deployTransaction = BaseIdentityContract.deploy({ data:IdentityBin, arguments:[]})
-            return deployTransaction.estimateGas()
-        })
-        .then((gasCost)=>{
-            deployGasCost = gasCost
-            deployTransaction.send( {from: accounts[0], gas: deployGasCost, gasPrice: 1})
-            .on('error', function(error){ console.error(error) })
-            .on('transactionHash', function(transactionHash){ console.log(transactionHash)})
-            .on('confirmation', function(confirmationNumber, receipt){ console.log (confirmationNumber, receipt) })
-            .on('receipt', function(receipt){ console.log(receipt.contractAddress)})
-            .then(function(newContractInstance){
-                console.log(newContractInstance.options.address) // instance with the new contract address
-                console.log(gasCost)
-                resolve(1)
-            });
-        })*/
+        .then(createAllDids)
+        .then(resolve)
     })
 };
 
