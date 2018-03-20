@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "scripts": {
     "solidity-coverage": "./node_modules/.bin/solidity-coverage",
-    "compile": "solcpiler -i './contracts/**/*.sol'"
+    "compile": "node scripts/compile.js"
   },
   "repository": {
     "type": "git",
