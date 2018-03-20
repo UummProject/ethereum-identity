@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "scripts": {
     "solidity-coverage": "./node_modules/.bin/solidity-coverage",
-    "compile": "node scripts/compile.js"
+    "compile": "node scripts/compile.js",
+    "go": "node scripts/basicScenario.js"
   },
   "repository": {
     "type": "git",
