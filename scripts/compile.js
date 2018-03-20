@@ -8,6 +8,11 @@ var input = {
     'Identity.sol': fs.readFileSync('contracts/Identity.sol', 'utf8'),
 };
 let compiledContract = solc.compile({sources: input}, 1);
+let errors = compiledContract.errors
+
+if(errors && errors.length)
+    errors.forEach((e)=>{console.error(e)})
+
 let abi = compiledContract.contracts['Identity.sol:Identity'].interface;
 
 let bytecode = '0x'+compiledContract.contracts['Identity.sol:Identity'].bytecode;
