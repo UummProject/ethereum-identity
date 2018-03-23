@@ -16,43 +16,77 @@ BaseIdentityContract.setProvider(wsProvider)
 let accounts = []
 let dids = {}
 
-let EMITTER = ""
-let USER1 = ""
-let USER2 = ""
-let GAS_PRICE = 1
+let EMITTER = 0
+let USER1 = 1
+let USER2 = 2
+let GAS_PRICE = 0
 
-newDid =(address)=>
+newDid =(account)=>
 {
-    console.log("New did ", address)
+    console.log("New did ", account.address)
     return new Promise((resolve, reject)=>{
-        let deployTransaction = BaseIdentityContract.deploy({ data:IdentityBin, arguments:[]})
-        deployTransaction.send( {from: address, gas: deployIdentityGasCost, gasPrice: GAS_PRICE})
-            .on('error', function(error){ console.error(address,error) })
-            //.on('transactionHash', function(transactionHash){ console.log("transaction hash", address,transactionHash)})
-            //.on('confirmation', function(confirmationNumber, receipt){ console.log ("confirmationNumber",address,confirmationNumber) })
-            //.on('receipt', function(receipt){ console.log("receipt", address,receipt.blockNumber)})
+        let deployTransaction = BaseIdentityContract.deploy({ data:IdentityBin, arguments:[], from: account.address, gas: deployIdentityGasCost, gasPrice: GAS_PRICE}) 
+        let encodedAbi = deployTransaction.encodeABI()
+
+        let transaction = {
+            gas: deployIdentityGasCost,
+            gasPrice: GAS_PRICE,
+            data: encodedAbi,
+            from: account.address
+        }
+        account.signTransaction(transaction)
+        .then((signedTransaction)=>{
+            web3.eth.sendSignedTransaction(signedTransaction.rawTransaction)
+            .on('error', function(error){ console.error(account.address,error) })
+            //.on('transactionHash', function(transactionHash){ console.log("transaction hash", account.address,transactionHash)})
+            //.on('confirmation', function(confirmationNumber, receipt){ console.log ("confirmationNumber",account.address,confirmationNumber) })
+            //.on('receipt', function(receipt){ console.log("receipt", account.address,receipt.blockNumber)})
             .then(function(newContractInstance){
-                console.log("Did created",address, newContractInstance.options.address)
-                dids[address] = newContractInstance
+                console.log("Did created",account.address, newContractInstance.contractAddress)
+                dids[account.address] = newContractInstance
                 resolve(newContractInstance)
             });
+        })
+        /*
+        deployTransaction.send( {from: account.address, gas: deployIdentityGasCost, gasPrice: GAS_PRICE})
+            .on('error', function(error){ console.error(account.address,error) })
+            //.on('transactionHash', function(transactionHash){ console.log("transaction hash", account.address,transactionHash)})
+            //.on('confirmation', function(confirmationNumber, receipt){ console.log ("confirmationNumber",account.address,confirmationNumber) })
+            //.on('receipt', function(receipt){ console.log("receipt", account.address,receipt.blockNumber)})
+            .then(function(newContractInstance){
+                console.log("Did created",account.address, newContractInstance.options.address)
+                dids[account.address] = newContractInstance
+                resolve(newContractInstance)
+            });
+            */
     })
 }
 
-createAllDids=(availableAccounts)=>
-{
-    accounts = availableAccounts
-    return new Promise((resolve, reject)=>{
-        EMITTER = accounts[0]
-        USER1 = accounts[1]
-        USER2 = accounts[2]
+createAllDids=(accounts)=>
+{ 
+    let index = 0
 
-        newDid(EMITTER)
-        .then(()=>newDid(USER1))
-        .then(()=>newDid(USER2))
+    return new Promise((resolve, reject)=>{
+
+        newDid(accounts[index])
         .then(resolve)
         .catch(reject)
     })
+}
+
+createAccount=()=>
+{
+    let privateKey = web3.utils.randomHex(32)
+    let account = web3.eth.accounts.privateKeyToAccount(privateKey)
+    return account
+}
+
+createAllAccounts=(num)=>
+{
+    let accounts = []
+    for(let i = 0; i<= num; i++)
+        accounts.push(createAccount())
+    return accounts
 }
 
 /*
@@ -87,7 +121,6 @@ createClaim=(signerAddress, claimData)=>
                 signature : signature
             }
 
-            console.log("SSS", claim, signature)
             resolve(claim)
         })
         .catch(reject)
@@ -111,9 +144,10 @@ makeClaim=(issuer, reciever, claim)=>
 
 run =()=>{
     return new Promise((resolve, reject)=>{
-        web3.eth.getAccounts()
-        .then(createAllDids)
-        .then(()=>createClaim(EMITTER,"Belongs"))
+        //web3.eth.getAccounts() // We don't use getAccounts() because sign function is not exposed
+        accounts =  createAllAccounts(10)
+        createAllDids(accounts)
+        //.then(()=>createClaim(EMITTER,"Belongs"))
         //.then((claim)=>makeClaim(EMITTER, USER1, claim))
         .then(resolve)
         .catch((e)=>{console.error(e);reject()})
