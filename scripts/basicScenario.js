@@ -21,9 +21,11 @@ let USER1 = 1
 let USER2 = 2
 let GAS_PRICE = 0
 
+//https://w3c-ccg.github.io/did-spec/#dfn-did-scheme
+let CLAIM = '{ "did": "did:entityUserBelongs:userEntityId" }'
+
 newDid =(account)=>
 {
-    console.log("New did ", account.address)
     return new Promise((resolve, reject)=>{
         let deployTransaction = BaseIdentityContract.deploy({ data:IdentityBin, arguments:[], from: account.address, gas: deployIdentityGasCost, gasPrice: GAS_PRICE}) 
         let encodedAbi = deployTransaction.encodeABI()
@@ -47,30 +49,26 @@ newDid =(account)=>
                 resolve(newContractInstance)
             });
         })
-        /*
-        deployTransaction.send( {from: account.address, gas: deployIdentityGasCost, gasPrice: GAS_PRICE})
-            .on('error', function(error){ console.error(account.address,error) })
-            //.on('transactionHash', function(transactionHash){ console.log("transaction hash", account.address,transactionHash)})
-            //.on('confirmation', function(confirmationNumber, receipt){ console.log ("confirmationNumber",account.address,confirmationNumber) })
-            //.on('receipt', function(receipt){ console.log("receipt", account.address,receipt.blockNumber)})
-            .then(function(newContractInstance){
-                console.log("Did created",account.address, newContractInstance.options.address)
-                dids[account.address] = newContractInstance
-                resolve(newContractInstance)
-            });
-            */
     })
 }
 
 createAllDids=(accounts)=>
 { 
-    let index = 0
-
     return new Promise((resolve, reject)=>{
 
-        newDid(accounts[index])
-        .then(resolve)
-        .catch(reject)
+        let createNextDid=(index)=>
+        {
+            if(index>=accounts.length)
+                resolve()
+            
+            newDid(accounts[index])
+            .then(()=>{
+                index ++
+                createNextDid(index)
+            })
+            .catch(reject)
+        }
+        createNextDid(0)
     })
 }
 
@@ -89,28 +87,31 @@ createAllAccounts=(num)=>
     return accounts
 }
 
-/*
-signature: Signature which is the proof that the claim issuer issued a claim of claimType for this identity.
-It MUST be a signed message of the following structure:
-keccak256(address subject_address, uint256 _claimType, bytes data)
-*/
-
-getSignature=(address, claimType, data)=>
+getSignature=(account, claimType, data)=>
 {
+    /*
+    signature: Signature which is the proof that the claim issuer issued a claim of claimType for this identity.
+    It MUST be a signed message of the following structure:
+    keccak256(address subject_address, uint256 _claimType, bytes data)
+    */
     let password = ""
-    let hash = web3.utils.keccak256(address,claimType,data) 
-    return web3.eth.personal.sign(hash, address, password)
+    let hash = web3.utils.keccak256(account.address,claimType,data)
+    let str= hash+" "//TODO: Why can't I just use the hash directly?
+    let signedHash = web3.eth.accounts.sign(str, account.privateKey)
+    return signedHash
+    //return web3.eth.personal.sign(hash, account.address)
    // return web3.eth.accounts.sign(data, prvSigner)
 }
 
-createClaim=(signerAddress, claimData)=>
+createClaim=(account, claimData)=>
 {
     let scheme = 1
     let claimType = 1
 
     return new Promise((resolve, reject)=>{
 
-        getSignature(signerAddress, claimType, claimData)
+        console.log(getSignature(account, claimType, claimData))
+        /*
         .then((signature)=>{
 
             let claim = {
@@ -123,7 +124,7 @@ createClaim=(signerAddress, claimData)=>
 
             resolve(claim)
         })
-        .catch(reject)
+        .catch(reject)*/
     })
 
 }
@@ -147,7 +148,7 @@ run =()=>{
         //web3.eth.getAccounts() // We don't use getAccounts() because sign function is not exposed
         accounts =  createAllAccounts(10)
         createAllDids(accounts)
-        //.then(()=>createClaim(EMITTER,"Belongs"))
+        .then(()=>createClaim(accounts[EMITTER],CLAIM))
         //.then((claim)=>makeClaim(EMITTER, USER1, claim))
         .then(resolve)
         .catch((e)=>{console.error(e);reject()})
