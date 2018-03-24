@@ -24,10 +24,20 @@ let GAS_PRICE = 0
 //https://w3c-ccg.github.io/did-spec/#dfn-did-scheme
 let CLAIM_CONTENT = '{ "did": "did:entityUserBelongs:userEntityId" }'
 
+createIdentityContractInstance = (contractAddress) =>
+{
+    let identityContract = new web3.eth.Contract(IdentityAbi)
+    identityContract.setProvider(wsProvider)
+    if(contractAddress)
+        identityContract.options.address = address
+    return identityContract
+}
+
 newDid =(account)=>
 {
     return new Promise((resolve, reject)=>{
-        let deployTransaction = BaseIdentityContract.deploy({ data:IdentityBin, arguments:[]}) 
+        let contractInstance = createIdentityContractInstance()
+        let deployTransaction = contractInstance.deploy({ data:IdentityBin, arguments:[]}) 
         let encodedAbi = deployTransaction.encodeABI()
 
         let transaction = {
@@ -46,7 +56,7 @@ newDid =(account)=>
             //.on('receipt', function(receipt){ console.log("receipt", account.address,receipt.blockNumber)})
             .then(function(newContractInstance){
                 console.log("Did created",account.address, newContractInstance.contractAddress)
-                dids[account.address] = newContractInstance
+                dids[account.address] = newContractInstance.contractAddress
                 resolve(newContractInstance)
             });
         })
@@ -124,6 +134,7 @@ makeClaim=(issuerAccount, recieverAddress, claim)=>
     return new Promise((resolve, reject)=>{
 
         console.log(dids[recieverAddress])
+        
         let claimTransaction = dids[recieverAddress].methods.addClaim(claim.claimType, claim.scheme, claim.issuer, claim.signature, claim.data, claim.uri)
         let encodedAbi = claimTransaction.encodeABI()
         let transaction = {
