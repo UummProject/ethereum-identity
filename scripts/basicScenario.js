@@ -16,7 +16,11 @@ let dids = {}// contractOwnerAddress:contractAddress
 let EMITTER = 0
 let USER1 = 1
 let USER2 = 2
+
+emitterClaimSignerAccount ={} // This is just to sign claims. Key needs to be different from address
 let GAS_PRICE = 0
+
+
 
 //https://w3c-ccg.github.io/did-spec/#dfn-did-scheme
 let CLAIM_CONTENT = '{ "did": "did:entityUserBelongs:userEntityId" }'
@@ -97,12 +101,11 @@ addKey=(account, contractAddress, key, keyPurpose, keyType)=>
 
     return new Promise((resolve, reject)=>{
 
-        let identityContract = createIdentityContractInstance(contractAddress)
-        let addKeyTransaction = identityContract.methods.addKey(key, keyPurpose, keyType)
-        let encodedAbi = addKeyTransaction.encodeABI()
+        let identityContract = createIdentityContractInstance()
+        let encodedAbi = identityContract.methods.addKey(key, keyPurpose, keyType).encodeABI()
 
         let transaction = {
-            gas: deployIdentityGasCost,
+            gas: deployIdentityGasCost*2,
             gasPrice: GAS_PRICE,
             data: encodedAbi,
             from: account.address
@@ -175,6 +178,7 @@ makeClaim=(issuerAccount, recieverAddress, claim)=>
         
         let identityContract = createIdentityContractInstance(recieverAddress)
         let claimTransaction = identityContract.methods.addClaim(claim.claimType, claim.scheme, claim.issuer, claim.signature, claim.data, claim.uri)
+        
         let encodedAbi = claimTransaction.encodeABI()
         let transaction = {
             gas: deployIdentityGasCost,
@@ -193,8 +197,12 @@ makeClaim=(issuerAccount, recieverAddress, claim)=>
             .then(function(receipt){
                 console.log("Claim made",receipt)
                 resolve()
-            });
+            })
         })
+        .catch((e)=>{
+            console.error(e)
+            reject(
+        )})
     })
 }
 
@@ -202,10 +210,11 @@ run =()=>{
     return new Promise((resolve, reject)=>{
         //web3.eth.getAccounts() // We don't use getAccounts() because sign function is not exposed
         accounts =  createAllAccounts(10)
+        emitterClaimSignerAccount = createAccount()
         createAllDids(accounts)
-        .then(()=>addKey(accounts[EMITTER], dids[accounts[EMITTER].address], accounts[EMITTER].address, 3, 1 ))
-        .then(()=>createClaim(accounts[EMITTER], CLAIM_CONTENT))
-        .then((claim)=>makeClaim(accounts[EMITTER], accounts[USER1].address, claim))
+        .then(()=>addKey(accounts[EMITTER], dids[accounts[EMITTER].address], web3.utils.keccak256(emitterClaimSignerAccount.address), 3, 1 ))
+        //.then(()=>createClaim(accounts[EMITTER], CLAIM_CONTENT))
+        //.then((claim)=>makeClaim(accounts[EMITTER], accounts[USER1].address, claim))
         .then(resolve)
         .catch((e)=>{
             console.error(e)
@@ -215,5 +224,11 @@ run =()=>{
 };
 
 run()
-.then(() =>  {console.log("Done!"); process.exit(0);})
-.catch((error)=>{console.log(error);process.exit(1);})
+.then(() =>  {
+    console.log("Done!")
+    process.exit(0)
+})
+.catch((error)=>{
+    console.log(error)
+    process.exit(1)
+})
