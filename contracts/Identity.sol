@@ -23,7 +23,7 @@
 
         event ExecutionFailed(uint256 indexed executionId, address indexed to, uint256 indexed value, bytes data);
 
-        function KeyHolder() public {
+        function Identity() public {
             bytes32 _key = keccak256(msg.sender);
             keys[_key].key = _key;
             keys[_key].purpose = 1;
