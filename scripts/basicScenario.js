@@ -99,8 +99,8 @@ addKey=(account, contractAddress, key, keyPurpose, keyType)=>
 
         let identityContract = createIdentityContractInstance(contractAddress)
         let addKeyTransaction = identityContract.methods.addKey(key, keyPurpose, keyType)
-        console.log(addKeyTransaction)
         let encodedAbi = addKeyTransaction.encodeABI()
+
         let transaction = {
             gas: deployIdentityGasCost,
             gasPrice: GAS_PRICE,
@@ -111,9 +111,12 @@ addKey=(account, contractAddress, key, keyPurpose, keyType)=>
         account.signTransaction(transaction)
         .then((signedTransaction)=>{
             web3.eth.sendSignedTransaction(signedTransaction.rawTransaction)
-            .on('error', function(error){ console.error(account.address,error) })
+            .on('error', function(error){ 
+                console.error("Failed adding key" ,error)
+                reject()
+            })
             .then(function(receipt){
-                console.log("Claim made",receipt)
+                console.log("Added key "+key+' of type '+ keyType + ' to did contract ' +contractAddress )
                 resolve()
             });
         })
@@ -183,10 +186,10 @@ makeClaim=(issuerAccount, recieverAddress, claim)=>
         issuerAccount.signTransaction(transaction)
         .then((signedTransaction)=>{
             web3.eth.sendSignedTransaction(signedTransaction.rawTransaction)
-            .on('error', function(error){ console.error(issuerAccount.address,error) })
-            //.on('transactionHash', function(transactionHash){ console.log("transaction hash", account.address,transactionHash)})
-            //.on('confirmation', function(confirmationNumber, receipt){ console.log ("confirmationNumber",account.address,confirmationNumber) })
-            //.on('receipt', function(receipt){ console.log("receipt", account.address,receipt.blockNumber)})
+            .on('error', function(error){
+                console.error(issuerAccount.address,error)
+                reject()
+            })
             .then(function(receipt){
                 console.log("Claim made",receipt)
                 resolve()
@@ -200,11 +203,14 @@ run =()=>{
         //web3.eth.getAccounts() // We don't use getAccounts() because sign function is not exposed
         accounts =  createAllAccounts(10)
         createAllDids(accounts)
-        .then(()=>addKey(accounts[EMITTER], dids[accounts[EMITTER]], accounts[EMITTER], 3, 1 ))
+        .then(()=>addKey(accounts[EMITTER], dids[accounts[EMITTER].address], accounts[EMITTER].address, 3, 1 ))
         .then(()=>createClaim(accounts[EMITTER], CLAIM_CONTENT))
         .then((claim)=>makeClaim(accounts[EMITTER], accounts[USER1].address, claim))
         .then(resolve)
-        .catch((e)=>{console.error(e);reject()})
+        .catch((e)=>{
+            console.error(e)
+            reject(
+        )})
     })
 };
 
