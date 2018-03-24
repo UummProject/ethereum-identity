@@ -22,12 +22,12 @@ let USER2 = 2
 let GAS_PRICE = 0
 
 //https://w3c-ccg.github.io/did-spec/#dfn-did-scheme
-let CLAIM = '{ "did": "did:entityUserBelongs:userEntityId" }'
+let CLAIM_CONTENT = '{ "did": "did:entityUserBelongs:userEntityId" }'
 
 newDid =(account)=>
 {
     return new Promise((resolve, reject)=>{
-        let deployTransaction = BaseIdentityContract.deploy({ data:IdentityBin, arguments:[], from: account.address, gas: deployIdentityGasCost, gasPrice: GAS_PRICE}) 
+        let deployTransaction = BaseIdentityContract.deploy({ data:IdentityBin, arguments:[]}) 
         let encodedAbi = deployTransaction.encodeABI()
 
         let transaction = {
@@ -36,6 +36,7 @@ newDid =(account)=>
             data: encodedAbi,
             from: account.address
         }
+
         account.signTransaction(transaction)
         .then((signedTransaction)=>{
             web3.eth.sendSignedTransaction(signedTransaction.rawTransaction)
@@ -90,17 +91,15 @@ createAllAccounts=(num)=>
 getSignature=(account, claimType, data)=>
 {
     /*
-    signature: Signature which is the proof that the claim issuer issued a claim of claimType for this identity.
+    Signature which is the proof that the claim issuer issued a claim of claimType for this identity.
     It MUST be a signed message of the following structure:
     keccak256(address subject_address, uint256 _claimType, bytes data)
     */
     let password = ""
     let hash = web3.utils.keccak256(account.address,claimType,data)
-    let str= hash+" "//TODO: Why can't I just use the hash directly?
-    let signedHash = web3.eth.accounts.sign(str, account.privateKey)
-    return signedHash
-    //return web3.eth.personal.sign(hash, account.address)
-   // return web3.eth.accounts.sign(data, prvSigner)
+    let signatureObject = web3.eth.accounts.sign(hash, account.privateKey)
+
+    return signatureObject
 }
 
 createClaim=(account, claimData)=>
@@ -108,38 +107,44 @@ createClaim=(account, claimData)=>
     let scheme = 1
     let claimType = 1
 
-    return new Promise((resolve, reject)=>{
+    let signatureObject = getSignature(account, claimType, claimData)
 
-        console.log(getSignature(account, claimType, claimData))
-        /*
-        .then((signature)=>{
-
-            let claim = {
-                scheme:scheme,
-                claimType : claimType,
-                data : claimData,
-                uri : "",
-                signature : signature
-            }
-
-            resolve(claim)
-        })
-        .catch(reject)*/
-    })
-
+    let claim = {
+        scheme:scheme,
+        claimType : claimType,
+        data : claimData, //signatureObject.messageHash?
+        uri : "",
+        signature : signatureObject.signature
+    }
+    return claim
 }
 
-makeClaim=(issuer, reciever, claim)=>
+makeClaim=(issuerAccount, recieverAddress, claim)=>
 {
     return new Promise((resolve, reject)=>{
 
-        let claimTransaction = dids[reciever].methods.addClaim(claim.claimType, claim.scheme, claim.issuer, claim.signature, claim.data, claim.uri)
-        claimTransaction.send( {from: issuer, $extraGas:100000, gasPrice: GAS_PRICE})
-        .on('error', function(error){ reject() })
-        .then(function(receipt){
-            console.log("Claim exectued", receipt)
-            resolve()
-        });
+        console.log(dids[recieverAddress])
+        let claimTransaction = dids[recieverAddress].methods.addClaim(claim.claimType, claim.scheme, claim.issuer, claim.signature, claim.data, claim.uri)
+        let encodedAbi = claimTransaction.encodeABI()
+        let transaction = {
+            gas: deployIdentityGasCost,
+            gasPrice: GAS_PRICE,
+            data: encodedAbi,
+            from: issuerAccount.address
+        }
+
+        issuerAccount.signTransaction(transaction)
+        .then((signedTransaction)=>{
+            web3.eth.sendSignedTransaction(signedTransaction.rawTransaction)
+            .on('error', function(error){ console.error(account.address,error) })
+            //.on('transactionHash', function(transactionHash){ console.log("transaction hash", account.address,transactionHash)})
+            //.on('confirmation', function(confirmationNumber, receipt){ console.log ("confirmationNumber",account.address,confirmationNumber) })
+            //.on('receipt', function(receipt){ console.log("receipt", account.address,receipt.blockNumber)})
+            .then(function(receipt){
+                console.log("Claim made",receipt)
+                resolve()
+            });
+        })
     })
 }
 
@@ -148,8 +153,8 @@ run =()=>{
         //web3.eth.getAccounts() // We don't use getAccounts() because sign function is not exposed
         accounts =  createAllAccounts(10)
         createAllDids(accounts)
-        .then(()=>createClaim(accounts[EMITTER],CLAIM))
-        //.then((claim)=>makeClaim(EMITTER, USER1, claim))
+        .then(()=>createClaim(accounts[EMITTER], CLAIM_CONTENT))
+        .then((claim)=>makeClaim(accounts[EMITTER], accounts[USER1].address, claim))
         .then(resolve)
         .catch((e)=>{console.error(e);reject()})
     })
