@@ -5,6 +5,7 @@ const IdentityAbi = require('../build/Identity.abi.json')
 const IdentityBin = require('../build/Identity.bin.json').bytecode
 
 const deployIdentityGasCost = 1700000
+const makeClaimGasCost = 130000
 
 Web3.providers.HttpProvider.prototype.sendAsync = Web3.providers.HttpProvider.prototype.send
 let wsProvider = new Web3.providers.WebsocketProvider("ws://localhost:8545")
@@ -54,7 +55,7 @@ newDid =(account)=>
             //.on('confirmation', function(confirmationNumber, receipt){ console.log ("confirmationNumber",account.address,confirmationNumber) })
             //.on('receipt', function(receipt){ console.log("receipt", account.address,receipt.blockNumber)})
             .then(function(newContractInstance){
-                console.log("Did created", account.address, newContractInstance.contractAddress)
+                console.log("Did created " + newContractInstance.contractAddress+" from " + account.address)
                 dids[account.address] = newContractInstance.contractAddress
                 resolve(newContractInstance)
             });
@@ -107,18 +108,20 @@ addKey=(account, contractAddress, key, keyPurpose, keyType)=>
 
     return new Promise((resolve, reject)=>{
 
-        let identityContract = createIdentityContractInstance(contractAddress)
+        let identityContract = createIdentityContractInstance()
         let encodedAbi = identityContract.methods.addKey(key, keyPurpose, keyType).encodeABI()
 
         let transaction = {
-            gas: deployIdentityGasCost*2,
+            gas: deployIdentityGasCost,
             gasPrice: GAS_PRICE,
             data: encodedAbi,
-            from: account.address
+            from: account.address,
+            to:contractAddress
         }
 
         account.signTransaction(transaction)
         .then((signedTransaction)=>{
+            console.log(signedTransaction)
             web3.eth.sendSignedTransaction(signedTransaction.rawTransaction)
             .on('error', function(error){ 
                 console.error("Failed adding key" ,error)
@@ -164,7 +167,7 @@ getSignature=(account, claimType, data)=>
 createClaim=(account, claimContent)=>
 {
     let scheme = 1
-    let claimType = 1
+    let claimType = 3
     let claimData = web3.utils.keccak256(claimContent)
     let signature = getSignature(account, claimType, claimData).signature
 
@@ -178,19 +181,21 @@ createClaim=(account, claimContent)=>
     return claim
 }
 
-makeClaim=(issuerAccount, recieverAddress, claim)=>
+makeClaim=(issuerAccount, contractAddress, claim)=>
 {
     return new Promise((resolve, reject)=>{
         
-        let identityContract = createIdentityContractInstance(recieverAddress)
+        let identityContract = createIdentityContractInstance(contractAddress)
         let claimTransaction = identityContract.methods.addClaim(claim.claimType, claim.scheme, claim.issuer, claim.signature, claim.data, claim.uri)
         
         let encodedAbi = claimTransaction.encodeABI()
         let transaction = {
-            gas: deployIdentityGasCost,
+            gas: makeClaimGasCost,
             gasPrice: GAS_PRICE,
             data: encodedAbi,
-            from: issuerAccount.address
+            from: issuerAccount.address,
+            to:contractAddress,
+            value:'0'
         }
 
         issuerAccount.signTransaction(transaction)
@@ -219,10 +224,10 @@ run =()=>{
         emitterClaimSignerAccount = createAccount()
         createAllDids(accounts)
         .then(()=>getKey(dids[accounts[EMITTER].address],  web3.utils.keccak256(accounts[EMITTER].address)))
-        .then((r)=>console.log(r))
-        //.then(()=>addKey(accounts[EMITTER], dids[accounts[EMITTER].address], web3.utils.keccak256(emitterClaimSignerAccount.address), 3, 1 ))
-        //.then(()=>createClaim(accounts[EMITTER], CLAIM_CONTENT))
-        //.then((claim)=>makeClaim(accounts[EMITTER], accounts[USER1].address, claim))
+        //.then((r)=>console.log(r))
+        .then(()=>addKey(accounts[EMITTER], dids[accounts[EMITTER].address], web3.utils.keccak256(emitterClaimSignerAccount.address), 3, 1 ))
+        .then(()=>createClaim(accounts[EMITTER], CLAIM_CONTENT))
+        .then((claim)=>makeClaim(accounts[EMITTER], dids[accounts[USER1].address], claim))
         .then(resolve)
         .catch((e)=>{
             console.error(e)
