@@ -179,7 +179,7 @@
             //KeyHolder issuer = KeyHolder(issuer);
 
             if (msg.sender != address(this)) {
-            require(keyHasPurpose(keccak256(msg.sender), 3));
+                require(keyHasPurpose(keccak256(msg.sender), 3));
             }
 
             if (claims[claimId].issuer != _issuer) {
