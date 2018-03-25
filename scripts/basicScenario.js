@@ -5,7 +5,7 @@ const IdentityAbi = require('../build/Identity.abi.json')
 const IdentityBin = require('../build/Identity.bin.json').bytecode
 
 const deployIdentityGasCost = 1700000
-const makeClaimGasCost = 130000
+const makeClaimGasCost = 1300000
 
 Web3.providers.HttpProvider.prototype.sendAsync = Web3.providers.HttpProvider.prototype.send
 let wsProvider = new Web3.providers.WebsocketProvider("ws://localhost:8545")
@@ -205,13 +205,14 @@ makeClaim=(account, contractAddress, claim)=>
     return new Promise((resolve, reject)=>{
         
         let identityContract = createIdentityContractInstance(contractAddress)
-        let claimTransaction = identityContract.methods.addClaim(claim.claimType, claim.scheme, claim.issuer, claim.signature, claim.data, claim.uri)
+        let claimAbi = identityContract.methods.addClaim(claim.claimType, claim.scheme, claim.issuer, claim.signature, claim.data, claim.uri).encodeABI()
         
-        let encodedAbi = claimTransaction.encodeABI()
+        let executeAbi = identityContract.methods.execute(contractAddress, 0, claimAbi).encodeABI()
+
         let transaction = {
             gas: makeClaimGasCost,
             gasPrice: GAS_PRICE,
-            data: encodedAbi,
+            data: executeAbi,
             from: account.address,
             to:contractAddress,
             value:'0'
