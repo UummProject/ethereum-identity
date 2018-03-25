@@ -35,32 +35,17 @@ createIdentityContractInstance = (contractAddress) =>
 
 newDid =(account)=>
 {
-    return new Promise((resolve, reject)=>{
-        let contractInstance = createIdentityContractInstance()
-        let deployTransaction = contractInstance.deploy({ data:IdentityBin, arguments:[]}) 
-        let encodedAbi = deployTransaction.encodeABI()
+    let contractInstance = createIdentityContractInstance()
+    let deployTransaction = contractInstance.deploy({ data:IdentityBin, arguments:[]}) 
+    let encodedAbi = deployTransaction.encodeABI()
+    let transaction = {
+        gas: deployIdentityGasCost,
+        gasPrice: GAS_PRICE,
+        data: encodedAbi,
+        from: account.address
+    }
 
-        let transaction = {
-            gas: deployIdentityGasCost,
-            gasPrice: GAS_PRICE,
-            data: encodedAbi,
-            from: account.address
-        }
-
-        account.signTransaction(transaction)
-        .then((signedTransaction)=>{
-            web3.eth.sendSignedTransaction(signedTransaction.rawTransaction)
-            .on('error', function(error){ console.error(account.address,error) })
-            //.on('transactionHash', function(transactionHash){ console.log("transaction hash", account.address,transactionHash)})
-            //.on('confirmation', function(confirmationNumber, receipt){ console.log ("confirmationNumber",account.address,confirmationNumber) })
-            //.on('receipt', function(receipt){ console.log("receipt", account.address,receipt.blockNumber)})
-            .then(function(newContractInstance){
-                console.log("Did created " + newContractInstance.contractAddress+" from " + account.address)
-                dids[account.address] = newContractInstance.contractAddress
-                resolve(newContractInstance)
-            });
-        })
-    })
+    return signAndSendTransaction(account, transaction)
 }
 
 createAllDids=(accounts)=>
@@ -73,7 +58,9 @@ createAllDids=(accounts)=>
                 resolve()
             
             newDid(accounts[index])
-            .then(()=>{
+            .then((didContractInstance)=>{
+                dids[accounts[index].address] = didContractInstance.contractAddress
+                console.log('Did created '+ didContractInstance.contractAddress +' from '+ accounts[index].address)
                 index ++
                 createNextDid(index)
             })
@@ -85,8 +72,9 @@ createAllDids=(accounts)=>
 
 getKey=(contractAddress, key)=>
 {
-        let identityContract = createIdentityContractInstance(contractAddress)
-        return identityContract.methods.getKey(key).call()
+    console.log(contractAddress)
+    let identityContract = createIdentityContractInstance(contractAddress)
+    return identityContract.methods.getKey(key).call()
 }
 
 addKey=(account, contractAddress, key, keyPurpose, keyType)=>
@@ -106,33 +94,20 @@ addKey=(account, contractAddress, key, keyPurpose, keyType)=>
     2 : RSA
     */
 
-    return new Promise((resolve, reject)=>{
+   
+    let identityContract = createIdentityContractInstance()
+    let encodedAbi = identityContract.methods.addKey(key, keyPurpose, keyType).encodeABI()
 
-        let identityContract = createIdentityContractInstance()
-        let encodedAbi = identityContract.methods.addKey(key, keyPurpose, keyType).encodeABI()
+    let transaction = {
+        gas: deployIdentityGasCost,
+        gasPrice: GAS_PRICE,
+        data: encodedAbi,
+        from: account.address,
+        to:contractAddress
+    }
 
-        let transaction = {
-            gas: deployIdentityGasCost,
-            gasPrice: GAS_PRICE,
-            data: encodedAbi,
-            from: account.address,
-            to:contractAddress
-        }
-
-        account.signTransaction(transaction)
-        .then((signedTransaction)=>{
-            console.log(signedTransaction)
-            web3.eth.sendSignedTransaction(signedTransaction.rawTransaction)
-            .on('error', function(error){ 
-                console.error("Failed adding key" ,error)
-                reject()
-            })
-            .then(function(receipt){
-                console.log("Added key "+key+' of type '+ keyType + ' to did contract ' +contractAddress )
-                resolve()
-            });
-        })
-    })
+    return signAndSendTransaction(account, transaction)
+    
 }
 
 createAccount=()=>
@@ -165,8 +140,7 @@ getSignature=(account, claimType, data)=>
 }
 
 createClaim=(account, claimContent)=>
-{
-    
+{  
     /*
         Scheme:
         The scheme with which this claim SHOULD be verified or how it should be processed.
@@ -202,39 +176,26 @@ createClaim=(account, claimContent)=>
 makeClaim=(account, contractAddress, claim)=>
 {
 
-    return new Promise((resolve, reject)=>{
-        
-        let identityContract = createIdentityContractInstance(contractAddress)
-        let claimAbi = identityContract.methods.addClaim(claim.claimType, claim.scheme, claim.issuer, claim.signature, claim.data, claim.uri).encodeABI()
-        
-        let executeAbi = identityContract.methods.execute(contractAddress, 0, claimAbi).encodeABI()
+    let identityContract = createIdentityContractInstance(contractAddress)
+    let claimAbi = identityContract.methods.addClaim(claim.claimType, claim.scheme, claim.issuer, claim.signature, claim.data, claim.uri).encodeABI()
+    let executeAbi = identityContract.methods.execute(contractAddress, 0, claimAbi).encodeABI()
+    let transaction = {
+        gas: makeClaimGasCost,
+        gasPrice: GAS_PRICE,
+        data: executeAbi,
+        from: account.address,
+        to:contractAddress,
+        value:0
+    }
 
-        let transaction = {
-            gas: makeClaimGasCost,
-            gasPrice: GAS_PRICE,
-            data: executeAbi,
-            from: account.address,
-            to:contractAddress,
-            value:'0'
-        }
+    return signAndSendTransaction(account, transaction)
+}
 
-        account.signTransaction(transaction)
-        .then((signedTransaction)=>{
-            web3.eth.sendSignedTransaction(signedTransaction.rawTransaction)
-            .on('error', function(error){
-                console.error(account.address,error)
-                reject()
-            })
-            .then(function(receipt){
-                console.log("Claim made",receipt)
-                resolve()
-            })
-        })
-        .catch((e)=>{
-            console.error(e)
-            reject(
-        )})
-    })
+signAndSendTransaction=(account, transaction)=>
+{
+        return account.signTransaction(transaction)
+        .then((signedTransaction)=>
+            web3.eth.sendSignedTransaction(signedTransaction.rawTransaction))
 }
 
 run =()=>{
@@ -244,10 +205,10 @@ run =()=>{
         emitterClaimSignerAccount = createAccount()
         createAllDids(accounts)
         .then(()=>getKey(dids[accounts[EMITTER].address],  web3.utils.keccak256(accounts[EMITTER].address)))
-        //.then((r)=>console.log(r))
         .then(()=>addKey(accounts[EMITTER], dids[accounts[EMITTER].address], web3.utils.keccak256(emitterClaimSignerAccount.address), 3, 1 ))
         .then(()=>createClaim(accounts[EMITTER], CLAIM_CONTENT))
         .then((claim)=>makeClaim(emitterClaimSignerAccount, dids[accounts[USER1].address], claim))
+        .then((r)=>console.log(r))
         .then(resolve)
         .catch((e)=>{
             console.error(e)
