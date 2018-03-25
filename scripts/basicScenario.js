@@ -1,4 +1,3 @@
-
 const Web3 = require ('web3')
 
 const IdentityAbi = require('../build/Identity.abi.json')
@@ -11,8 +10,8 @@ Web3.providers.HttpProvider.prototype.sendAsync = Web3.providers.HttpProvider.pr
 let wsProvider = new Web3.providers.WebsocketProvider("ws://localhost:8545")
 let web3 = new Web3(wsProvider)
 
-let accounts = [] //
-let dids = {}// contractOwnerAddress:contractAddress
+let accounts = []//contains account objects including private keys {privateKey:123, address:0x12...}
+let dids = {}//{'contractOwnerAddress':'contractAddress',...}
 
 let EMITTER = 0
 let USER1 = 1
@@ -21,10 +20,11 @@ let USER2 = 2
 emitterClaimSignerAccount ={} // This is just to sign claims. Key needs to be different from address
 let GAS_PRICE = 0
 
-
-
 //https://w3c-ccg.github.io/did-spec/#dfn-did-scheme
 let CLAIM_CONTENT = '{ "did": "did:entityUserBelongs:userEntityId" }'
+
+//Specs:https://github.com/ethereum/EIPs/issues/725
+//Specs:https://github.com/ethereum/EIPs/issues/735
 
 createIdentityContractInstance = (contractAddress) =>
 {
@@ -72,29 +72,25 @@ createAllDids=(accounts)=>
 
 getKey=(contractAddress, key)=>
 {
-    console.log(contractAddress)
     let identityContract = createIdentityContractInstance(contractAddress)
     return identityContract.methods.getKey(key).call()
 }
 
 addKey=(account, contractAddress, key, keyPurpose, keyType)=>
 {
-    //Specs:https://github.com/ethereum/EIPs/issues/725
-
     /*
-    Key purposes:
-    1: MANAGEMENT keys, which can manage the identity
-    2: ACTION keys, which perform actions in this identities name (signing, logins, transactions, etc.)
-    3: CLAIM signer keys, used to sign claims on other identities which need to be revokable.
-    4: ENCRYPTION keys, used to encrypt data e.g. hold in claims.
+        Key purposes:
+        1: MANAGEMENT keys, which can manage the identity
+        2: ACTION keys, which perform actions in this identities name (signing, logins, transactions, etc.)
+        3: CLAIM signer keys, used to sign claims on other identities which need to be revokable.
+        4: ENCRYPTION keys, used to encrypt data e.g. hold in claims.
     */
 
     /*KeyType: 
-    1 : ECDSA
-    2 : RSA
+        1 : ECDSA
+        2 : RSA
     */
 
-   
     let identityContract = createIdentityContractInstance()
     let encodedAbi = identityContract.methods.addKey(key, keyPurpose, keyType).encodeABI()
 
@@ -107,7 +103,6 @@ addKey=(account, contractAddress, key, keyPurpose, keyType)=>
     }
 
     return signAndSendTransaction(account, transaction)
-    
 }
 
 createAccount=()=>
@@ -128,9 +123,9 @@ createAllAccounts=(num)=>
 getSignature=(account, claimType, data)=>
 {
     /*
-    Signature which is the proof that the claim issuer issued a claim of claimType for this identity.
-    It MUST be a signed message of the following structure:
-    keccak256(address subject_address, uint256 _claimType, bytes data)
+        Signature which is the proof that the claim issuer issued a claim of claimType for this identity.
+        It MUST be a signed message of the following structure:
+        keccak256(address subject_address, uint256 _claimType, bytes data)
     */
     let password = ""
     let hash = web3.utils.keccak256(account.address,claimType,data)
@@ -193,9 +188,9 @@ makeClaim=(account, contractAddress, claim)=>
 
 signAndSendTransaction=(account, transaction)=>
 {
-        return account.signTransaction(transaction)
-        .then((signedTransaction)=>
-            web3.eth.sendSignedTransaction(signedTransaction.rawTransaction))
+    return account.signTransaction(transaction)
+    .then((signedTransaction)=>
+        web3.eth.sendSignedTransaction(signedTransaction.rawTransaction))
 }
 
 run =()=>{
@@ -203,10 +198,16 @@ run =()=>{
         //web3.eth.getAccounts() // We don't use getAccounts() because sign function is not exposed
         accounts =  createAllAccounts(10)
         emitterClaimSignerAccount = createAccount()
+        //Deploy multiple identity contracts
         createAllDids(accounts)
         .then(()=>getKey(dids[accounts[EMITTER].address],  web3.utils.keccak256(accounts[EMITTER].address)))
+        //One of the identities will be the one making the claim (EMITTER)
+        //Claims needs to be done from a public key for this purpose
+        //We add a new key to the EMITTER identity
         .then(()=>addKey(accounts[EMITTER], dids[accounts[EMITTER].address], web3.utils.keccak256(emitterClaimSignerAccount.address), 3, 1 ))
+        //We create and sign the claim
         .then(()=>createClaim(accounts[EMITTER], CLAIM_CONTENT))
+        //We ad the claim to USER1 identity through the EMITTER identity
         .then((claim)=>makeClaim(emitterClaimSignerAccount, dids[accounts[USER1].address], claim))
         .then((r)=>console.log(r))
         .then(resolve)
