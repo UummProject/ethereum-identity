@@ -82,6 +82,12 @@ createAllDids=(accounts)=>
     })
 }
 
+getKey=(contractAddress, key)=>
+{
+        let identityContract = createIdentityContractInstance(contractAddress)
+        return identityContract.methods.getKey(key).call()
+}
+
 addKey=(account, contractAddress, key, keyPurpose, keyType)=>
 {
     //Specs:https://github.com/ethereum/EIPs/issues/725
@@ -101,7 +107,7 @@ addKey=(account, contractAddress, key, keyPurpose, keyType)=>
 
     return new Promise((resolve, reject)=>{
 
-        let identityContract = createIdentityContractInstance()
+        let identityContract = createIdentityContractInstance(contractAddress)
         let encodedAbi = identityContract.methods.addKey(key, keyPurpose, keyType).encodeABI()
 
         let transaction = {
@@ -212,7 +218,9 @@ run =()=>{
         accounts =  createAllAccounts(10)
         emitterClaimSignerAccount = createAccount()
         createAllDids(accounts)
-        .then(()=>addKey(accounts[EMITTER], dids[accounts[EMITTER].address], web3.utils.keccak256(emitterClaimSignerAccount.address), 3, 1 ))
+        .then(()=>getKey(dids[accounts[EMITTER].address],  web3.utils.keccak256(accounts[EMITTER].address)))
+        .then((r)=>console.log(r))
+        //.then(()=>addKey(accounts[EMITTER], dids[accounts[EMITTER].address], web3.utils.keccak256(emitterClaimSignerAccount.address), 3, 1 ))
         //.then(()=>createClaim(accounts[EMITTER], CLAIM_CONTENT))
         //.then((claim)=>makeClaim(accounts[EMITTER], accounts[USER1].address, claim))
         .then(resolve)
