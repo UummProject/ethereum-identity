@@ -166,23 +166,42 @@ getSignature=(account, claimType, data)=>
 
 createClaim=(account, claimContent)=>
 {
+    
+    /*
+        Scheme:
+        The scheme with which this claim SHOULD be verified or how it should be processed.
+        Its a uint256 for different schemes.
+        E.g. could 3 mean contract verification,
+        where the data will be call data,
+        and the issuer a contract address to call (ToBeDefined).
+        Those can also mean different key types e.g. 1 = ECDSA, 2 = RSA, etc. (ToBeDefined)
+    */
+   
+    /*
+       claimType:
+       The number which represents the type of claim.
+       (e.g. 1 biometric, 2 residence (ToBeDefined))
+    */
+
     let scheme = 1
     let claimType = 3
     let claimData = web3.utils.keccak256(claimContent)
     let signature = getSignature(account, claimType, claimData).signature
 
     let claim = {
-        scheme:scheme,
         claimType : claimType,
+        scheme:scheme,
+        issuer:account.address,
+        signature : signature,
         data : claimData,
         uri : "Location of the claim",//Voting contract address?
-        signature : signature
     }
     return claim
 }
 
-makeClaim=(issuerAccount, contractAddress, claim)=>
+makeClaim=(account, contractAddress, claim)=>
 {
+
     return new Promise((resolve, reject)=>{
         
         let identityContract = createIdentityContractInstance(contractAddress)
@@ -193,16 +212,16 @@ makeClaim=(issuerAccount, contractAddress, claim)=>
             gas: makeClaimGasCost,
             gasPrice: GAS_PRICE,
             data: encodedAbi,
-            from: issuerAccount.address,
+            from: account.address,
             to:contractAddress,
             value:'0'
         }
 
-        issuerAccount.signTransaction(transaction)
+        account.signTransaction(transaction)
         .then((signedTransaction)=>{
             web3.eth.sendSignedTransaction(signedTransaction.rawTransaction)
             .on('error', function(error){
-                console.error(issuerAccount.address,error)
+                console.error(account.address,error)
                 reject()
             })
             .then(function(receipt){
@@ -227,7 +246,7 @@ run =()=>{
         //.then((r)=>console.log(r))
         .then(()=>addKey(accounts[EMITTER], dids[accounts[EMITTER].address], web3.utils.keccak256(emitterClaimSignerAccount.address), 3, 1 ))
         .then(()=>createClaim(accounts[EMITTER], CLAIM_CONTENT))
-        .then((claim)=>makeClaim(accounts[EMITTER], dids[accounts[USER1].address], claim))
+        .then((claim)=>makeClaim(emitterClaimSignerAccount, dids[accounts[USER1].address], claim))
         .then(resolve)
         .catch((e)=>{
             console.error(e)
