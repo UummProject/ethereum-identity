@@ -5,7 +5,7 @@ const IdentityAbi = require('../build/Identity.abi.json')
 const IdentityBin = require('../build/Identity.bin.json').bytecode
 
 const deployIdentityGasCost = 1700000
-const makeClaimGasCost = 1300000
+const makeClaimGasCost = 350000
 
 Web3.providers.HttpProvider.prototype.sendAsync = Web3.providers.HttpProvider.prototype.send
 let wsProvider = new Web3.providers.WebsocketProvider("ws://localhost:8545")
