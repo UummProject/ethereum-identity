@@ -1,6 +1,7 @@
 const fs = require("fs");
 const solc = require('solc')
 const mkdirp = require ('mkdirp')
+const buildDirectory = './build'
 
 var input = {
     'ERC725.sol': fs.readFileSync('contracts/ERC725.sol', 'utf8'),
@@ -20,18 +21,22 @@ let bytecodeInJson = JSON.stringify({bytecode:bytecode})
 
 console.log("Contract compiled")
 
-fs.writeFile("build/Identity.abi.json", abi, function(err)
+if (!fs.existsSync(buildDirectory)){
+    fs.mkdirSync(buildDirectory)
+}
+
+fs.writeFile(buildDirectory+"/Identity.abi.json", abi, function(err)
 {
     if(err)
         return console.log(err);
     else
-        console.log("Abi file created at build/Identity.abi.json");
+        console.log("Abi file created at "+buildDirectory+"/Identity.abi.json");
 }); 
 
-fs.writeFile("build/Identity.bin.json",bytecodeInJson, function(err)
+fs.writeFile(buildDirectory+"/Identity.bin.json",bytecodeInJson, function(err)
 {
     if(err)
         return console.log(err);
     else
-        console.log("Bytecode file created at build/Identity.bin.json");
+        console.log("Bytecode file created at "+buildDirectory+"/Identity.bin.json");
 });
