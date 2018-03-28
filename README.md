@@ -7,4 +7,6 @@ Started by forking from [Status.im implementation](https://github.com/status-im/
 
 `npm run compile`
 
+`ganache-cli`
+
 `npm run go`
