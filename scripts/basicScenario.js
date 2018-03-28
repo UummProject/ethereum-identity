@@ -22,6 +22,7 @@ let GAS_PRICE = 0
 
 //https://w3c-ccg.github.io/did-spec/#dfn-did-scheme
 let CLAIM_CONTENT = '{ "did": "did:entityUserBelongs:userEntityId" }'
+let CLAIM_TYPE = 1
 
 //Specs:https://github.com/ethereum/EIPs/issues/725
 //Specs:https://github.com/ethereum/EIPs/issues/735
@@ -153,7 +154,7 @@ createClaim=(account, claimContent)=>
     */
 
     let scheme = 1
-    let claimType = 3
+    let claimType = CLAIM_TYPE
     let claimData = web3.utils.keccak256(claimContent)
     let signature = getSignature(account, claimType, claimData).signature
 
@@ -168,22 +169,44 @@ createClaim=(account, claimContent)=>
     return claim
 }
 
-makeClaim=(account, contractAddress, claim)=>
+makeClaim=(emitterAccount, recieverContractAddress, claim)=>
 {
 
-    let identityContract = createIdentityContractInstance(contractAddress)
-    let claimAbi = identityContract.methods.addClaim(claim.claimType, claim.scheme, claim.issuer, claim.signature, claim.data, claim.uri).encodeABI()
-    let executeAbi = identityContract.methods.execute(contractAddress, 0, claimAbi).encodeABI()
+    let recieverIdentityContract = createIdentityContractInstance(recieverContractAddress)
+    let emitterIdentityContract = createIdentityContractInstance(emitterAccount.address)
+    let claimAbi = recieverIdentityContract.methods.addClaim(claim.claimType, claim.scheme, claim.issuer, claim.signature, claim.data, claim.uri).encodeABI()
+    let executeAbi = emitterIdentityContract.methods.execute(recieverContractAddress, 0, claimAbi).encodeABI()
     let transaction = {
         gas: makeClaimGasCost,
         gasPrice: GAS_PRICE,
         data: executeAbi,
-        from: account.address,
-        to:contractAddress,
+        //from: '0x000000000000000000000000000000000000dEaD',
+        to:recieverContractAddress,
         value:0
     }
 
-    return signAndSendTransaction(account, transaction)
+    return signAndSendTransaction(emitterAccount, transaction)
+}
+
+verifyClaim=(claim, contractAddress)=>
+{
+    return new Promise((resolve, reject)=>{
+
+        let identityContract = createIdentityContractInstance(contractAddress)
+        let claimId = getClaimId(claim.issuer, claim.claimType)
+        console.log('claimId:', claimId)
+        identityContract.methods.getClaimSig(claimId).call()
+        .then((signature)=>{
+            console.log(signature)
+            resolve()
+        })
+    })
+
+}
+
+getClaimId=(issuerAddress, claimType)=>
+{
+     return web3.utils.keccak256(issuerAddress, claimType)
 }
 
 signAndSendTransaction=(account, transaction)=>
@@ -191,6 +214,19 @@ signAndSendTransaction=(account, transaction)=>
     return account.signTransaction(transaction)
     .then((signedTransaction)=>
         web3.eth.sendSignedTransaction(signedTransaction.rawTransaction))
+}
+
+getClaimsByType=(contractAddress, type)=>
+{
+    return new Promise((resolve, reject)=>{
+
+        let identityContract = createIdentityContractInstance(contractAddress)
+        identityContract.methods.getClaimIdsByType(type).call()
+        .then((claimIds)=>{
+            console.log(claimIds)
+            resolve()
+        })
+    })
 }
 
 run =()=>{
@@ -208,9 +244,12 @@ run =()=>{
         //We create and sign the claim
         .then(()=>createClaim(accounts[EMITTER], CLAIM_CONTENT))
         //We ad the claim to USER1 identity through the EMITTER identity
-        .then((claim)=>makeClaim(emitterClaimSignerAccount, dids[accounts[USER1].address], claim))
-        .then((r)=>console.log(r))
-        .then(resolve)
+        .then((claim)=>makeClaim(accounts[EMITTER], dids[accounts[USER1].address], claim))
+        .then((r)=>console.log('Claim made at '+ dids[accounts[USER1].address]+ " by "+dids[accounts[EMITTER].address]))
+        .then(()=>getClaimsByType(dids[accounts[USER1].address],CLAIM_TYPE))
+        .then((claimIds)=>console.log('Existing claims at '+ dids[accounts[USER1].address],claimIds))
+        .then(()=>createClaim(accounts[EMITTER], CLAIM_CONTENT))
+        .then((claim)=>verifyClaim(claim, dids[accounts[USER1].address]))
         .catch((e)=>{
             console.error(e)
             reject(
