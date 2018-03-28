@@ -30,7 +30,7 @@ let CLAIM_TYPE = 1
 createIdentityContractInstance = (contractAddress) =>
 {
     let identityContract = new web3.eth.Contract(IdentityAbi, contractAddress)
-    identityContract.setProvider(wsProvider)
+    identityContract.setProvider(wsProvider)  
     return identityContract
 }
 
@@ -61,6 +61,9 @@ createAllDids=(accounts)=>
             newDid(accounts[index])
             .then((didContractInstance)=>{
                 dids[accounts[index].address] = didContractInstance.contractAddress
+                //console.log(didContractInstance)
+                let identityContract = createIdentityContractInstance(didContractInstance.contractAddress)
+                identityContract.events.ClaimRequested({},(error, event)=>{console.log(error, event)})
                 console.log('Did created '+ didContractInstance.contractAddress +' from '+ accounts[index].address)
                 index ++
                 createNextDid(index)
@@ -171,7 +174,6 @@ createClaim=(account, claimContent)=>
 
 makeClaim=(emitterAccount, recieverContractAddress, claim)=>
 {
-
     let recieverIdentityContract = createIdentityContractInstance(recieverContractAddress)
     let emitterIdentityContract = createIdentityContractInstance(emitterAccount.address)
     let claimAbi = recieverIdentityContract.methods.addClaim(claim.claimType, claim.scheme, claim.issuer, claim.signature, claim.data, claim.uri).encodeABI()
@@ -201,7 +203,6 @@ verifyClaim=(claim, contractAddress)=>
             resolve()
         })
     })
-
 }
 
 getClaimId=(issuerAddress, claimType)=>
@@ -223,8 +224,7 @@ getClaimsByType=(contractAddress, type)=>
         let identityContract = createIdentityContractInstance(contractAddress)
         identityContract.methods.getClaimIdsByType(type).call()
         .then((claimIds)=>{
-            console.log(claimIds)
-            resolve()
+            resolve(claimIds)
         })
     })
 }
@@ -247,7 +247,7 @@ run =()=>{
         .then((claim)=>makeClaim(accounts[EMITTER], dids[accounts[USER1].address], claim))
         .then((r)=>console.log('Claim made at '+ dids[accounts[USER1].address]+ " by "+dids[accounts[EMITTER].address]))
         .then(()=>getClaimsByType(dids[accounts[USER1].address],CLAIM_TYPE))
-        .then((claimIds)=>console.log('Existing claims at '+ dids[accounts[USER1].address],claimIds))
+        .then((claimIds)=>console.log('Existing claims at '+ dids[accounts[USER1].address], claimIds))
         .then(()=>createClaim(accounts[EMITTER], CLAIM_CONTENT))
         .then((claim)=>verifyClaim(claim, dids[accounts[USER1].address]))
         .catch((e)=>{
