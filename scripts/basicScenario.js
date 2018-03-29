@@ -7,8 +7,8 @@ const deployIdentityGasCost = 1700000
 const makeClaimGasCost = 350000
 
 Web3.providers.HttpProvider.prototype.sendAsync = Web3.providers.HttpProvider.prototype.send
-let wsProvider = new Web3.providers.WebsocketProvider("ws://localhost:8545")
-let web3 = new Web3(wsProvider)
+getWsProvider=()=> new Web3.providers.WebsocketProvider("ws://localhost:8545")
+let web3 = new Web3(getWsProvider())
 
 let accounts = []//contains account objects including private keys {privateKey:123, address:0x12...}
 let dids = {}//{'contractOwnerAddress':'contractAddress',...}
@@ -30,7 +30,7 @@ let CLAIM_TYPE = 1
 createIdentityContractInstance = (contractAddress) =>
 {
     let identityContract = new web3.eth.Contract(IdentityAbi, contractAddress)
-    identityContract.setProvider(wsProvider)  
+    identityContract.setProvider(getWsProvider())  
     return identityContract
 }
 
@@ -57,13 +57,27 @@ createAllDids=(accounts)=>
         {
             if(index>=accounts.length)
                 resolve()
-            
+
+
+    
             newDid(accounts[index])
             .then((didContractInstance)=>{
                 dids[accounts[index].address] = didContractInstance.contractAddress
                 //console.log(didContractInstance)
                 let identityContract = createIdentityContractInstance(didContractInstance.contractAddress)
-                identityContract.events.ClaimRequested({},(error, event)=>{console.log(error, event)})
+                identityContract.events.allEvents({fromBlock: 'latest' })
+                .on('data', (r)=>console.log('allEvents > Account '+index, r.event))
+                .on('error', (e)=>console.log('allEvents > Account '+index,e))
+                
+                identityContract.events.ExecutionRequested({fromBlock: 'latest' })
+                .on('data', (r)=>console.log('ExecutionRequested > Account '+index, r.returnValues))
+                .on('error', (e)=>console.log('ExecutionRequested > Account '+index,e))
+
+                identityContract.events.ClaimAdded({fromBlock: 'latest' })
+                .on('data', (r)=>console.log('ClaimAdded > Account '+index, r.returnValues))
+                .on('error', (e)=>console.log('ClaimAdded > Account '+index,e))
+                
+                identityContract.events.ClaimAdded({},(error, event)=>{console.log(error, event)})
                 console.log('Did created '+ didContractInstance.contractAddress +' from '+ accounts[index].address)
                 index ++
                 createNextDid(index)
@@ -176,6 +190,7 @@ makeClaim=(emitterAccount, recieverContractAddress, claim)=>
 {
     let recieverIdentityContract = createIdentityContractInstance(recieverContractAddress)
     let emitterIdentityContract = createIdentityContractInstance(emitterAccount.address)
+    //emitterIdentityContract.events.ExecutionRequested({fromBlock: 'latest' }, (error,event)=>{console.log(error,event)})
     let claimAbi = recieverIdentityContract.methods.addClaim(claim.claimType, claim.scheme, claim.issuer, claim.signature, claim.data, claim.uri).encodeABI()
     let executeAbi = emitterIdentityContract.methods.execute(recieverContractAddress, 0, claimAbi).encodeABI()
     let transaction = {
@@ -248,8 +263,8 @@ run =()=>{
         .then((r)=>console.log('Claim made at '+ dids[accounts[USER1].address]+ " by "+dids[accounts[EMITTER].address]))
         .then(()=>getClaimsByType(dids[accounts[USER1].address],CLAIM_TYPE))
         .then((claimIds)=>console.log('Existing claims at '+ dids[accounts[USER1].address], claimIds))
-        .then(()=>createClaim(accounts[EMITTER], CLAIM_CONTENT))
-        .then((claim)=>verifyClaim(claim, dids[accounts[USER1].address]))
+        //.then(()=>createClaim(accounts[EMITTER], CLAIM_CONTENT))
+        //.then((claim)=>verifyClaim(claim, dids[accounts[USER1].address]))
         .catch((e)=>{
             console.error(e)
             reject(
