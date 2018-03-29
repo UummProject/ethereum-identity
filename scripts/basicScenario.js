@@ -66,15 +66,15 @@ createAllDids=(accounts)=>
                 //console.log(didContractInstance)
                 let identityContract = createIdentityContractInstance(didContractInstance.contractAddress)
                 identityContract.events.allEvents({fromBlock: 'latest' })
-                .on('data', (r)=>console.log('allEvents > Account '+index, r.event))
+                .on('data', (r)=>console.log(r.event, index, didContractInstance.contractAddress))
                 .on('error', (e)=>console.log('allEvents > Account '+index,e))
                 
                 identityContract.events.ExecutionRequested({fromBlock: 'latest' })
-                .on('data', (r)=>console.log('ExecutionRequested > Account '+index, r.returnValues))
+                //.on('data', (r)=>console.log('ExecutionRequested > Account '+index, r.returnValues))
                 .on('error', (e)=>console.log('ExecutionRequested > Account '+index,e))
 
                 identityContract.events.ClaimAdded({fromBlock: 'latest' })
-                .on('data', (r)=>console.log('ClaimAdded > Account '+index, r.returnValues))
+               // .on('data', (r)=>console.log('ClaimAdded > Account '+index, r.returnValues))
                 .on('error', (e)=>console.log('ClaimAdded > Account '+index,e))
                 
                 identityContract.events.ClaimAdded({},(error, event)=>{console.log(error, event)})
@@ -186,19 +186,22 @@ createClaim=(account, claimContent)=>
     return claim
 }
 
-makeClaim=(emitterAccount, recieverContractAddress, claim)=>
+makeClaim=(emitterAccount,emiterContractAddress, recieverContractAddress, claim)=>
 {
+    console.log('emiter, receiver', emitterAccount.address, recieverContractAddress)
+
     let recieverIdentityContract = createIdentityContractInstance(recieverContractAddress)
-    let emitterIdentityContract = createIdentityContractInstance(emitterAccount.address)
-    //emitterIdentityContract.events.ExecutionRequested({fromBlock: 'latest' }, (error,event)=>{console.log(error,event)})
     let claimAbi = recieverIdentityContract.methods.addClaim(claim.claimType, claim.scheme, claim.issuer, claim.signature, claim.data, claim.uri).encodeABI()
+    
+    let emitterIdentityContract = createIdentityContractInstance(emiterContractAddress)
     let executeAbi = emitterIdentityContract.methods.execute(recieverContractAddress, 0, claimAbi).encodeABI()
+    
     let transaction = {
-        gas: makeClaimGasCost,
+        gas: makeClaimGasCost*2,
         gasPrice: GAS_PRICE,
         data: executeAbi,
-        //from: '0x000000000000000000000000000000000000dEaD',
-        to:recieverContractAddress,
+        from: emitterAccount.address,
+        to: emiterContractAddress,
         value:0
     }
 
@@ -255,11 +258,11 @@ run =()=>{
         //One of the identities will be the one making the claim (EMITTER)
         //Claims needs to be done from a public key for this purpose
         //We add a new key to the EMITTER identity
-        .then(()=>addKey(accounts[EMITTER], dids[accounts[EMITTER].address], web3.utils.keccak256(emitterClaimSignerAccount.address), 3, 1 ))
+        //.then(()=>addKey(accounts[EMITTER], dids[accounts[EMITTER].address], web3.utils.keccak256(emitterClaimSignerAccount.address), 3, 1 ))
         //We create and sign the claim
         .then(()=>createClaim(accounts[EMITTER], CLAIM_CONTENT))
         //We ad the claim to USER1 identity through the EMITTER identity
-        .then((claim)=>makeClaim(accounts[EMITTER], dids[accounts[USER1].address], claim))
+        .then((claim)=>makeClaim(accounts[EMITTER], dids[accounts[EMITTER].address], dids[accounts[USER1].address], claim))
         .then((r)=>console.log('Claim made at '+ dids[accounts[USER1].address]+ " by "+dids[accounts[EMITTER].address]))
         .then(()=>getClaimsByType(dids[accounts[USER1].address],CLAIM_TYPE))
         .then((claimIds)=>console.log('Existing claims at '+ dids[accounts[USER1].address], claimIds))
