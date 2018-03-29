@@ -4,7 +4,7 @@ const IdentityAbi = require('../build/Identity.abi.json')
 const IdentityBin = require('../build/Identity.bin.json').bytecode
 
 const deployIdentityGasCost = 1700000
-const makeClaimGasCost = 350000
+const makeClaimGasCost = 400000
 
 Web3.providers.HttpProvider.prototype.sendAsync = Web3.providers.HttpProvider.prototype.send
 getWsProvider=()=> new Web3.providers.WebsocketProvider("ws://localhost:8545")
@@ -257,8 +257,8 @@ run =()=>{
         .then(()=>getKey(dids[accounts[EMITTER].address],  web3.utils.keccak256(accounts[EMITTER].address)))
         //One of the identities will be the one making the claim (EMITTER)
         //Claims needs to be done from a public key for this purpose
-        //We add a new key to the EMITTER identity
-        //.then(()=>addKey(accounts[EMITTER], dids[accounts[EMITTER].address], web3.utils.keccak256(emitterClaimSignerAccount.address), 3, 1 ))
+        //We add the EMITTER  identity contract key to the user, so it can make claims
+        .then(()=>addKey(accounts[USER1], dids[accounts[USER1].address], web3.utils.keccak256( dids[accounts[EMITTER].address]), 3, 1 ))
         //We create and sign the claim
         .then(()=>createClaim(accounts[EMITTER], CLAIM_CONTENT))
         //We ad the claim to USER1 identity through the EMITTER identity
