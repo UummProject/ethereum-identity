@@ -2,8 +2,7 @@ const Web3 = require ('web3')
 
 const IdentityAbi = require('../build/Identity.abi.json')
 const IdentityBin = require('../build/Identity.bin.json').bytecode
-
-const style = require('ansi-styles');
+const colorize = require('colorized-addresses').colorize
 
 const deployIdentityGasCost = 1700000
 const makeClaimGasCost =  640000
@@ -287,17 +286,5 @@ run()
 })
 
 
-colorize=(address, displayShortAddress = true)=>
-{
-    let short = address.substr(2,6)
-    let color ='#'+short
-    let addr = address
-    
-    if(displayShortAddress)
-        addr = '0x'+short
 
-    let str = style.color.ansi256.hex(color) + addr + style.color.close
-
-    return str
-}
 
