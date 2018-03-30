@@ -3,6 +3,8 @@ const Web3 = require ('web3')
 const IdentityAbi = require('../build/Identity.abi.json')
 const IdentityBin = require('../build/Identity.bin.json').bytecode
 
+const style = require('ansi-styles');
+
 const deployIdentityGasCost = 1700000
 const makeClaimGasCost =  640000
 
@@ -55,29 +57,28 @@ createAllDids=(accounts)=>
 
         let createNextDid=(index)=>
         {
-            if(index>=accounts.length)
-                resolve()
-
+            console.log('Creating did '+index)
             newDid(accounts[index])
             .then((didContractInstance)=>{
                 dids[accounts[index].address] = didContractInstance.contractAddress
 
                 let identityContract = createIdentityContractInstance(didContractInstance.contractAddress)
                 identityContract.events.allEvents({fromBlock: 'latest' })
-                .on('data', (r)=>console.log(r.event, index, didContractInstance.contractAddress))
-                .on('error', (e)=>console.log('allEvents > Account '+index,e))
-                
-                identityContract.events.ExecutionRequested({fromBlock: 'latest' })
-                //.on('data', (r)=>console.log('ExecutionRequested > Account '+index, r.returnValues))
-                .on('error', (e)=>console.log('ExecutionRequested > Account '+index,e))
+                .on('data', (r)=>console.log(r.event, index,colorize( didContractInstance.contractAddress)))
+                .on('error', (e)=>console.log('allEvents > Account '+index  ,e))
 
-                identityContract.events.ClaimAdded({fromBlock: 'latest' })
-                //.on('data', (r)=>console.log('ClaimAdded > Account '+index, r.returnValues))
-                .on('error', (e)=>console.log('ClaimAdded > Account '+index,e))
-                
-                console.log('Did created '+ didContractInstance.contractAddress +' from '+ accounts[index].address)
+                console.log('Did '+ index + ' created '+ colorize(didContractInstance.contractAddress) +' from '+ colorize(accounts[index].address))
                 index ++
-                createNextDid(index)
+
+                if(index>=accounts.length)
+                    resolve()
+                else
+                {
+                    createNextDid(index)
+                    console.log('This was did '+ index)
+
+                }
+
             })
             .catch(reject)
         }
@@ -130,7 +131,7 @@ createAccount=()=>
 createAllAccounts=(num)=>
 {
     let accounts = []
-    for(let i = 0; i<= num; i++)
+    for(let i = 0; i< num; i++)
         accounts.push(createAccount())
     return accounts
 }
@@ -168,18 +169,22 @@ createClaim=(account, claimContent)=>
     */
 
     let scheme = 1
-    let claimType = CLAIM_TYPE
     let claimData = web3.utils.keccak256(claimContent)
-    let signature = getSignature(account, claimType, claimData).signature
+    let signature = getSignature(account, CLAIM_TYPE, claimData).signature
 
     let claim = {
-        claimType : claimType,
+        claimType : CLAIM_TYPE,
         scheme:scheme,
         issuer:account.address,
         signature : signature,
         data : claimData,
         uri : "Location of the claim",//Voting contract address?
     }
+
+    let claimId = getClaimId(claim.issuer, claim.claimType)
+    console.log('Expected ClaimId ', colorize(claimId))
+   
+
     return claim
 }
 
@@ -200,9 +205,6 @@ makeClaim=(emitterAccount, emiterContractAddress, recieverContractAddress, claim
         value:0
     }
 
-    let claimId = getClaimId(emiterContractAddress, CLAIM_TYPE)
-    console.log('Expected ClaimId ', claimId)
-
     return signAndSendTransaction(emitterAccount, transaction)
 }
 
@@ -213,7 +215,7 @@ verifyClaim=(claim, contractAddress)=>
         let identityContract = createIdentityContractInstance(contractAddress)
         let claimId = getClaimId(contractAddress, claim.claimType)
 
-        console.log('Verified ClaimId:', claimId)
+        console.log('Verified ClaimId:', colorize(claimId))
         identityContract.methods.getClaimSig(claimId).call()
         .then((signature)=>{
             console.log('signature',signature)
@@ -264,7 +266,7 @@ run =()=>{
         .then((claim)=>makeClaim(accounts[EMITTER], dids[accounts[EMITTER].address], dids[accounts[USER1].address], claim))
         //.then((r)=>console.log('Claim made at '+ dids[accounts[USER1].address]+ " by "+dids[accounts[EMITTER].address]))
         .then(()=>getClaimsByType(dids[accounts[USER1].address], CLAIM_TYPE))
-        .then((claimIds)=>console.log('Existing claims at '+ dids[accounts[USER1].address], claimIds))
+        .then((claimIds)=>console.log('Existing claims at '+ colorize(dids[accounts[USER1].address]), claimIds))
         .then(()=>createClaim(accounts[EMITTER], CLAIM_CONTENT))
         .then((claim)=>verifyClaim(claim, dids[accounts[USER1].address]))
         .catch((e)=>{
@@ -283,3 +285,19 @@ run()
     console.log(error)
     process.exit(1)
 })
+
+
+colorize=(address, displayShortAddress = true)=>
+{
+    let short = address.substr(2,6)
+    let color ='#'+short
+    let addr = address
+    
+    if(displayShortAddress)
+        addr = '0x'+short
+
+    let str = style.color.ansi256.hex(color) + addr + style.color.close
+
+    return str
+}
+
